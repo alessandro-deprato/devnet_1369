@@ -1,0 +1,175 @@
+---
+apic:
+  tenants:
+    - name: common
+      contracts:
+          - name: cleur23_user_any_con
+            scope: global
+            subjects:
+              - name: permit-any_con
+                filters:
+                  - filter: cleur23_all_flt
+          - name: cleur23_application_any_con
+            scope: global
+            subjects:
+              - name: permit-any_con
+                filters:
+                  - filter: cleur23_all_flt
+      filters:
+        - name: cleur23_all_flt
+          entries:
+            - name: any_ip
+              ethertype: ip
+    - name: cleur_23_shared_tn
+      vrfs:
+        - name: cleur23_shared_vrf
+      bridge_domains:
+        - name: shared_user_services_bd
+          vrf: cleur23_shared_vrf
+          subnets:
+          - ip: 172.22.0.254/24
+          shared: true
+        - name: shared_application_services_bd
+          vrf: cleur23_shared_vrf
+          subnets:
+          - ip: 172.22.1.254/24
+          shared: true
+      application_profiles:
+        - name: shared_app
+          endpoint_groups:
+              - name: shared_user_services_epg
+                bridge_domain: shared_user_services_bd
+                vmware_vmm_domains:
+                - name: vmm_vds_mlg
+                  deployment_immediacy: immediate
+                  resolution_immediacy: immediate
+                subnets:
+                - ip: 172.22.0.254/24
+                shared: true
+                contracts:
+                  providers:
+                    - cleur23_user_any_con
+              - name: shared_application_services_epg
+                bridge_domain: shared_application_services_bd
+                vmware_vmm_domains:
+                - name: vmm_vds_mlg
+                  deployment_immediacy: immediate
+                  resolution_immediacy: immediate
+                subnets:
+                - ip: 172.22.1.254/24
+                shared: true
+                contracts:
+                  providers:
+                    - cleur23_application_any_con
+    - name: cleur_23_development_tn
+      contracts:
+        - name: app_fe_to_be_con
+          subjects:
+            - name: permit_any_con
+              filters:
+                - filter: cleur23_all_flt
+      vrfs:
+        - name: cleur23_vrf
+      bridge_domains:
+        - name: backend_bd
+          vrf: cleur23_vrf
+          subnets:
+          - ip: 172.23.0.254/24
+        - name: user_bd
+          vrf: cleur23_vrf
+          subnets:
+          - ip: 172.22.4.254/24
+            shared: true
+      application_profiles:
+        - name: marvel_app
+          endpoint_groups:
+              - name: backend_epg
+                bridge_domain: backend_bd
+                vmware_vmm_domains:
+                - name: vmm_vds_mlg
+                  deployment_immediacy: immediate
+                  resolution_immediacy: immediate
+                subnets:
+                - ip: 172.23.0.254/24
+                contracts:
+                  providers:
+                    - app_fe_to_be_con
+              - name: user_epg
+                bridge_domain: user_bd
+                vmware_vmm_domains:
+                - name: vmm_vds_mlg
+                  deployment_immediacy: immediate
+                  resolution_immediacy: immediate
+                subnets:
+                - ip: 172.22.3.254/24
+                  shared: true
+                contracts:
+                  consumers:
+                    - cleur23_user_any_con
+    - name: cleur_23_production_tn
+      contracts:
+        - name: app_fe_to_be_con
+          subjects:
+            - name: permit_any_con
+              filters:
+                - filter: cleur23_all_flt
+      vrfs:
+        - name: cleur23_vrf
+      bridge_domains:
+        - name: backend_bd
+          vrf: cleur23_vrf
+          subnets:
+          - ip: 172.23.0.254/24
+            shared: true
+        - name: frontend_bd
+          vrf: cleur23_vrf
+          subnets:
+          - ip: 172.23.1.254/24
+            shared: true
+        - name: user_bd
+          vrf: cleur23_vrf
+          subnets:
+          - ip: 172.22.3.254/24
+            shared: true
+      application_profiles:
+        - name: marvel_app
+          endpoint_groups:
+              - name: backend_epg
+                bridge_domain: backend_bd
+                vmware_vmm_domains:
+                - name: vmm_vds_mlg
+                  deployment_immediacy: immediate
+                  resolution_immediacy: immediate
+                subnets:
+                - ip: 172.23.0.254/24
+                  shared: true
+                contracts:
+                  consumers:
+                    - cleur23_application_any_con
+                  providers:
+                    - app_fe_to_be_con
+              - name: frontend_epg
+                bridge_domain: frontend_bd
+                vmware_vmm_domains:
+                - name: vmm_vds_mlg
+                  deployment_immediacy: immediate
+                  resolution_immediacy: immediate
+                subnets:
+                - ip: 172.23.1.254/24
+                  shared: true
+                contracts:
+                  consumers:
+                    - cleur23_application_any_con
+                    - app_fe_to_be_con
+              - name: user_epg
+                bridge_domain: user_bd
+                vmware_vmm_domains:
+                - name: vmm_vds_mlg
+                  deployment_immediacy: immediate
+                  resolution_immediacy: immediate
+                subnets:
+                - ip: 172.22.3.254/24
+                  shared: true
+                contracts:
+                  consumers:
+                    - cleur23_user_any_con

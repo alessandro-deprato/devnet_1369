@@ -1,0 +1,25 @@
+{
+    "fvTenant": {
+        "attributes": {
+            "SELECT(name)": "EXACT({{tenant_name}})"
+        },
+        "children": [
+            {
+                "fvBD": {
+                        "attributes": {
+                            "SELECT(unicastRoute)": "EXACT(yes)"
+                        },
+                         "children": [
+                        {
+                            "fvSubnet": {
+                                "attributes": {
+                                    "MATCH(ip)": "OR({{ subnets | join(',') }})"
+                                }
+                            }
+                        }
+                    ]
+                }
+           }
+        ]
+    }
+}
