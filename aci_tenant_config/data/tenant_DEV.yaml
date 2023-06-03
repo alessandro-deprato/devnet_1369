@@ -3,34 +3,70 @@ apic:
   tenants:
     - name: common
       contracts:
-          - name: cleur23_user_any_con
+          - name: adeprato_compliance_file_share_co
             scope: global
             subjects:
-              - name: permit-any_con
+              - name: permit-smb_cos
                 filters:
-                  - filter: cleur23_all_flt
-          - name: cleur23_application_any_con
+                  - filter: adeprato_compliance_file_share_flt
+          - name: adeprato_compliance_application_any_con
             scope: global
             subjects:
-              - name: permit-any_con
+              - name: permit-db_cos
                 filters:
-                  - filter: cleur23_all_flt
+                  - filter: adeprato_compliance_db_flt
       filters:
-        - name: cleur23_all_flt
+        - name: adeprato_compliance_db_flt
           entries:
-            - name: any_ip
+            - name: mysql
               ethertype: ip
-    - name: cleur_23_shared_tn
+              protocol: tcp
+              destination_from_port: 3306
+              destination_to_port: 3306
+            - name: mssql
+              ethertype: ip
+              protocol: tcp
+              destination_from_port: 1433
+              destination_to_port: 1433
+            - name: icmp
+              ethertype: ip
+              protocol: icmp
+        - name: adeprato_compliance_file_share_flt
+          entries:
+            - name: smb_tcp_445
+              ethertype: ip
+              protocol: tcp
+              destination_from_port: 445
+              destination_to_port: 445
+            - name: smb_udp_137
+              ethertype: ip
+              protocol: udp
+              destination_from_port: 137
+              destination_to_port: 137
+            - name: smb_udp_139
+              ethertype: ip
+              protocol: udp
+              destination_from_port: 139
+              destination_to_port: 139
+            - name: smb_tcp_139
+              ethertype: ip
+              protocol: tcp
+              destination_from_port: 139
+              destination_to_port: 139
+            - name: icmp
+              ethertype: ip
+              protocol: icmp
+    - name: adeprato_compliance_shared_tn
       vrfs:
-        - name: cleur23_shared_vrf
+        - name: adeprato_compliance_shared_vrf
       bridge_domains:
         - name: shared_user_services_bd
-          vrf: cleur23_shared_vrf
+          vrf: adeprato_compliance_shared_vrf
           subnets:
           - ip: 172.22.0.254/24
           shared: true
         - name: shared_application_services_bd
-          vrf: cleur23_shared_vrf
+          vrf: adeprato_compliance_shared_vrf
           subnets:
           - ip: 172.22.1.254/24
           shared: true
@@ -40,7 +76,7 @@ apic:
               - name: shared_user_services_epg
                 bridge_domain: shared_user_services_bd
                 vmware_vmm_domains:
-                - name: vmm_vds_mlg
+                - name: VC_AMS
                   deployment_immediacy: immediate
                   resolution_immediacy: immediate
                 subnets:
@@ -48,11 +84,11 @@ apic:
                 shared: true
                 contracts:
                   providers:
-                    - cleur23_user_any_con
+                    - adeprato_compliance_file_share_co
               - name: shared_application_services_epg
                 bridge_domain: shared_application_services_bd
                 vmware_vmm_domains:
-                - name: vmm_vds_mlg
+                - name: VC_AMS
                   deployment_immediacy: immediate
                   resolution_immediacy: immediate
                 subnets:
@@ -60,23 +96,23 @@ apic:
                 shared: true
                 contracts:
                   providers:
-                    - cleur23_application_any_con
-    - name: cleur_23_development_tn
+                    - adeprato_compliance_application_any_con
+    - name: adeprato_compliance_development_tn
       contracts:
         - name: app_fe_to_be_con
           subjects:
-            - name: permit_any_con
+            - name: permit_db_con
               filters:
-                - filter: cleur23_all_flt
+                - filter: adeprato_compliance_db_flt
       vrfs:
-        - name: cleur23_vrf
+        - name: adeprato_compliance_vrf
       bridge_domains:
         - name: backend_bd
-          vrf: cleur23_vrf
+          vrf: adeprato_compliance_vrf
           subnets:
           - ip: 172.23.0.254/24
         - name: user_bd
-          vrf: cleur23_vrf
+          vrf: adeprato_compliance_vrf
           subnets:
           - ip: 172.22.4.254/24
             shared: true
@@ -86,7 +122,7 @@ apic:
               - name: backend_epg
                 bridge_domain: backend_bd
                 vmware_vmm_domains:
-                - name: vmm_vds_mlg
+                - name: VC_AMS
                   deployment_immediacy: immediate
                   resolution_immediacy: immediate
                 subnets:
@@ -97,7 +133,7 @@ apic:
               - name: user_epg
                 bridge_domain: user_bd
                 vmware_vmm_domains:
-                - name: vmm_vds_mlg
+                - name: VC_AMS
                   deployment_immediacy: immediate
                   resolution_immediacy: immediate
                 subnets:
@@ -105,29 +141,29 @@ apic:
                   shared: true
                 contracts:
                   consumers:
-                    - cleur23_user_any_con
-    - name: cleur_23_production_tn
+                    - adeprato_compliance_file_share_co
+    - name: adeprato_compliance_production_tn
       contracts:
         - name: app_fe_to_be_con
           subjects:
-            - name: permit_any_con
+            - name: permit_db_con
               filters:
-                - filter: cleur23_all_flt
+                - filter: adeprato_compliance_db_flt
       vrfs:
-        - name: cleur23_vrf
+        - name: adeprato_compliance_vrf
       bridge_domains:
         - name: backend_bd
-          vrf: cleur23_vrf
+          vrf: adeprato_compliance_vrf
           subnets:
           - ip: 172.23.0.254/24
             shared: true
         - name: frontend_bd
-          vrf: cleur23_vrf
+          vrf: adeprato_compliance_vrf
           subnets:
           - ip: 172.23.1.254/24
             shared: true
         - name: user_bd
-          vrf: cleur23_vrf
+          vrf: adeprato_compliance_vrf
           subnets:
           - ip: 172.22.3.254/24
             shared: true
@@ -137,7 +173,7 @@ apic:
               - name: backend_epg
                 bridge_domain: backend_bd
                 vmware_vmm_domains:
-                - name: vmm_vds_mlg
+                - name: VC_AMS
                   deployment_immediacy: immediate
                   resolution_immediacy: immediate
                 subnets:
@@ -145,13 +181,13 @@ apic:
                   shared: true
                 contracts:
                   consumers:
-                    - cleur23_application_any_con
+                    - adeprato_compliance_application_any_con
                   providers:
                     - app_fe_to_be_con
               - name: frontend_epg
                 bridge_domain: frontend_bd
                 vmware_vmm_domains:
-                - name: vmm_vds_mlg
+                - name: VC_AMS
                   deployment_immediacy: immediate
                   resolution_immediacy: immediate
                 subnets:
@@ -159,12 +195,12 @@ apic:
                   shared: true
                 contracts:
                   consumers:
-                    - cleur23_application_any_con
+                    - adeprato_compliance_application_any_con
                     - app_fe_to_be_con
               - name: user_epg
                 bridge_domain: user_bd
                 vmware_vmm_domains:
-                - name: vmm_vds_mlg
+                - name: VC_AMS
                   deployment_immediacy: immediate
                   resolution_immediacy: immediate
                 subnets:
@@ -172,4 +208,4 @@ apic:
                   shared: true
                 contracts:
                   consumers:
-                    - cleur23_user_any_con
+                    - adeprato_compliance_file_share_co

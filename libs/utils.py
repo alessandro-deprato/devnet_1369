@@ -34,7 +34,7 @@ def log_manager(debug=None, log_filename=None, logger_name=None):
     # Configure console logging
     if not debug:
         cli_handler = logging.StreamHandler()
-        cli_handler.setLevel(logging.INFO)
+        cli_handler.setLevel(logging.DEBUG)
         cli_handler_format = logging.Formatter("%(message)s")
         cli_handler.setFormatter(cli_handler_format)
         LOG.addHandler(cli_handler)

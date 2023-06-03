@@ -11,7 +11,7 @@ from jinja2 import Template
 
 # Defining global vars
 # Using them just for the sake of simplicity in this demo wrapper
-ndc = ndi.Ndi("")
+ndc = ndi.Ndi("","")
 ipam_data = dict()
 rendered_data = dict()
 notifications = list()
@@ -31,7 +31,7 @@ def connect_to_ndi():
     """
 
     global ndc
-    ndc = ndi.Ndi(variables.nd_host, api_key=variables.nd_api_key, insight_group=variables.insight_group)
+    ndc = ndi.Ndi(variables.nd_host, insight_group=variables.insight_group, api_key=variables.ndi_aci_api_key)
     return ndc
 
 
@@ -50,14 +50,14 @@ def acquire_ipam_data():
     """
     LOG.info("Establishing connection to IPAM")
     my_ipam = pynetbox.api(
-        'http://10.50.128.147:8000',
+        'http://10.50.128.210',
         variables.ipam_token
     )
     # List of tenants that we will pull from the IPAM, it matching ACI tenants
 
-    ipam_tenants = ["cleur_23_production_tn",
-                    "cleur_23_development_tn",
-                    "cleur_23_shared_tn"]
+    ipam_tenants = ["adeprato_compliance_development_tn",
+                    "adeprato_compliance_production_tn",
+                    "adeprato_compliance_shared_tn"]
     global ipam_data
     ipam_data = {tenant: [] for tenant in ipam_tenants}
     for prefix in list(my_ipam.ipam.prefixes.filter(tenant=ipam_tenants)):
@@ -114,46 +114,6 @@ def push_compliance_requirements():
             LOG.info(f"{template_name} not on NDI, will push it now")
             ndc.create_compliance_template_rule(f"{template_name}",
                                                 "Automatically maintained list", rendered_template, [variables.site_name])
-    LOG.info("Stopping Active Assurance Jobs")
-    ndc.stop_assurance_analysis(variables.site_name)
-    sleep(30)
-    LOG.info(f"Starting a new Assurance Job for {variables.site_name}")
-    ndc.start_assurance_analysis(variables.site_name)
-    return None
-
-
-def read_compliance_alerts():
-    """
-    The Goal here is to read via the NDI API the active alerts and filter the ones related to the
-    IPAM compliance.
-    :return:  None
-    """
-    existing_templates_names = {item["name"]: item["uuid"] for item in ndc.get_all_template_compliance_rules()}
-    compliance_alerts = ndc.get_anomalies(f"&fabricName={variables.site_name}&filter=category:Compliance AND severity:critical \
-    AND acknowledged:false AND cleared:false&insightsGroupName={variables.insight_group}&")
-    # At this point we will get all anomalies for configuration compliance, but we want only the ones affecting
-    # our IPAM requirements so we need to dig one more level
-    global notifications
-    for alert in compliance_alerts:
-        alert_details = ndc.get_anomaly_affected_objects(alert["anomalyId"], variables.site_name)
-        compliance_name, tenant_name, bridge_domain, missing_ip = None, None, None, None
-        for compliance_object in alert_details["value"]["data"][0]["primaryAffectedObject"]["compositeKey"]:
-            if compliance_object["type"] == "NI_OBJECT_TYPE_COMPLIANCE_REQUIREMENT":
-                compliance_name = compliance_object["name"]
-                tenant_name = compliance_object["name"].replace('_ipam_requirements', '')
-            if compliance_object["type"] == "NI_OBJECT_TYPE_GOLDEN_CONFIGURATION_OBJECT":
-                missing_ip = re.findall("\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}", compliance_object["name"])
-                bridge_domain = compliance_object["identifier"].split("/BD-")[1].split("/")[0]
-        if compliance_name and compliance_name in existing_templates_names.keys():
-            notifications.append({"tenant": tenant_name,
-                                  "bd": bridge_domain,
-                                  "ip": ','.join(missing_ip),
-                                  "anomaly_id": alert["anomalyId"],
-                                  "insight_group": variables.insight_group,
-                                  "site_name": variables.site_name})
-            LOG.warning(f"Anomaly on {tenant_name}, IP"
-                        f" {','.join(missing_ip)} is assigned to {bridge_domain}")
-
     return None
 
 
@@ -173,12 +133,12 @@ def generate_configs():
     """
     :return:
     """
-    objects = [("cleur_23_production_tn", "fvBD", "frontend_bd"),
-               ("cleur_23_production_tn", "fvAEPg", "frontend_epg")]
+    objects = [("adeprato_compliance_production_tn", "fvBD", "frontend_bd"),
+               ("adeprato_compliance_production_tn", "fvAEPg", "frontend_epg")]
 
     global configuration
     configuration = {
-        "fvTenant": {"attributes": {"name": "cleur_23_development_tn", "dn": "uni/tn-cleur_23_development_tn"
+        "fvTenant": {"attributes": {"name": "adeprato_compliance_development_tn", "dn": "uni/tn-adeprato_compliance_development_tn"
                 } , "children": [{"fvAp": {"attributes": {"name": "marvel_app"}, "children": []}}]}}
 
     attributes_exclude = ["dn"]
@@ -202,63 +162,6 @@ def generate_configs():
     with open(f"generated_files/apic_config.json", "w") as file:
         LOG.info(f"Writing file apic_config.json")
         file.write(json.dumps(configuration))
-    return None
-
-
-def generate_configs_v2():
-    """
-    :return:
-    """
-    objects = [("cleur_23_production_tn", "fvBD", "frontend_bd"),
-               ("cleur_23_production_tn", "fvAEPg", "frontend_epg")]
-
-    global configuration
-    configuration = {
-        "fvTenant": {"attributes": {"name": "cleur_23_development_tn", "dn": "uni/tn-cleur_23_development_tn"
-                } , "children": [{"fvAp": {"attributes": {"name": "marvel_app"}, "children": []}}]}}
-
-    attributes_exclude = ["dn"]
-    for obj in objects:
-        original_object = apic_conn.get_aci_object(f"/mo/uni/tn-{obj[0]}.json", query_target="subtree",
-        rsp_subtree="full", rsp_prop_include="config-only", query_target_filter=f'eq({obj[1]}.name,"{obj[2]}")',
-        target_subtree_class=f"{obj[1]}")["imdata"][0]
-        new_obj = {obj[1]: {"attributes": {"name": "%s" % (obj[2])}, "children": []}}
-        for attribute in original_object[obj[1]]["attributes"].keys():
-            if attribute not in attributes_exclude:
-                new_obj[obj[1]]["attributes"].update(
-                    {attribute: original_object[obj[1]]["attributes"][attribute]})
-        for c_item in original_object[obj[1]]["children"]:
-            if "fvSubnet" in c_item.keys():
-                c_item["fvSubnet"]["attributes"]["scope"] = \
-                    c_item["fvSubnet"]["attributes"]["scope"].replace(",shared","")
-                new_obj[obj[1]]["children"].append(c_item)
-            elif "fvRsCons" in c_item.keys() and \
-                    c_item["fvRsCons"]["attributes"]["tnVzBrCPName"] == "cleur23_user_any_con":
-                pass
-            else:
-                new_obj[obj[1]]["children"].append(c_item)
-        if obj[1] == "fvBD":
-            configuration["fvTenant"]["children"].append(new_obj)
-        elif obj[1] == "fvAEPg":
-            for child in configuration["fvTenant"]["children"]:
-                if "fvAp" in child.keys():
-                    child["fvAp"]["children"].append(new_obj)
-
-    with open(f"generated_files/apic_config.json", "w") as file:
-        LOG.info(f"Writing file apic_config.json")
-        file.write(json.dumps(configuration))
-    return None
-
-def push_to_apic():
-    """
-    :return: None
-    """
-    LOG.info("Triggering a snapshot on APIC")
-    apic_conn.take_snapshot("adp", 5)
-    if apic_conn.api_post(url="mo/uni/tn-cleur_23_development_tn.json", json_body=configuration):
-        LOG.info("Configuration loaded on APIC")
-    else:
-        LOG.error("Configuration NOT loaded on APIC")
     return None
 
 
@@ -297,7 +200,6 @@ def wait_pcv():
     pcv_result = ndc.get_pcv_by_id(current_pcv["jobId"],variables.site_name)
     return None
 
-
 def read_delta_analysis():
     """
     :return:
@@ -314,14 +216,13 @@ def read_delta_analysis():
         LOG.info(f'PCV found {event_count["EPOCH2_ONLY"]} new {",".join(item_severity)} anomalies')
         for anomaly in ndc.get_delta_analysis_anomalies(
                 variables.site_name, pcv_result["value"]["data"]["epochDeltaJobId"], "EPOCH2_ONLY",
-
                 aggregated_anomaly["bucket"])["entries"]:
             LOG.error(f"Anomaly:{anomaly['anomalyStr']}")
 
 
 def main():
     """
-    This is a demo runner script to be used during CLEUR23 DEVNET-1369
+    This is a demo runner script to be used during CL23 DEVNET-1369
     """
 
     args = utils.args_manager()
@@ -333,28 +234,14 @@ def main():
             connect_to_ndi,
             acquire_ipam_data,
             build_compliance_requirements,
-            push_compliance_requirements,
-            read_compliance_alerts,
-            acquire_ipam_data,
-            build_compliance_requirements,
-            push_compliance_requirements
-        ],
+            push_compliance_requirements],
         "demo_2": [
             apic_connect,
             generate_configs,
             connect_to_ndi,
             run_pcv,
             wait_pcv,
-            read_delta_analysis,
-            generate_configs_v2,
-            acquire_ipam_data,
-            build_compliance_requirements,
-            push_compliance_requirements,
-            run_pcv,
-            wait_pcv,
-            read_delta_analysis,
-            push_to_apic,
-        ]
+            read_delta_analysis]
     }
 
     for current_function in demo_list[args.demo]:

@@ -15,13 +15,17 @@ class Ndi(object):
     Master Class for NDI API
     """
 
-    def __init__(self, address, credentials=None, api_key=None, insight_group=None):
+    def __init__(self, address:str, insight_group:str, credentials:dict=None, api_key:dict=None):
+        """Initialises an NDI API object
+
+        Args:
+            address (str): IP Address or FQDN
+            insight_group (str): NDI Insight Group. Most of the API calls are bounded to an IG so we will set it since beginning
+            credentials (dict, optional): dictionay {"userName":"","userPasswd":"","domain":""}
+            api_key (dict, optional): A string to authorize all the API calls. Can be generated from the NDI Web UI
+            
         """
-        :param address: IP address or FQDN
-        :param credentials: {'userName': '', 'userPasswd': '', 'domain': 'DefaultAuth'}
-        :param api_key: ND API Key
-        :param insight_group: ND insight group. Better defining it here if you plan to work only with a specific site
-        """
+        
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
         LOG.info("A new NDI Instance is being started")
@@ -174,11 +178,10 @@ class Ndi(object):
             LOG.error(f"POST failed, {result.status_code}, {result.text}")
             return False, ""
 
-    def generic_delete(self, uri_object, ig_name="", files=None):
+    def generic_delete(self, uri_object, ig_name=""):
         """
         :param uri_object:
         :param ig_name:
-        :param files:
         :return:
         """
 
@@ -248,7 +251,7 @@ class Ndi(object):
         for job in all_jobs["entries"]:
             if (job["operSt"]) in ["RUNNING"]:
                 data = {"instanceId":job["jobId"]}
-                uri = "telemetry/v2/insightsGroup/dc_spain/fabric/MLG01/jobs/stop.json"
+                uri = "telemetry/v2/insightsGroup/{ig_name}/fabric/%s/jobs/stop.json" % site_name
                 self.generic_post(uri, data)
 
 
@@ -515,3 +518,81 @@ class Ndi(object):
             return True
         else:
             return False
+
+    def get_site_groups(self,insight_group_name:str=None) -> list: 
+        """To get all the site groups configured in NDI
+
+        Args:
+            insight_group_name (_type_, optional): If this is specified then the list len will be 1
+
+        Returns:
+            list: A list of site groups
+        """
+        if insight_group_name:
+            uri = f"telemetry/v2/config/insightsGroup?insightsGroupName={insight_group_name}"
+        else:
+            uri = "telemetry/v2/config/insightsGroup"
+        result,data = self.generic_get(uri)
+        if not result:
+            return False
+        else:
+            return data["value"]["data"]
+    
+    def get_nodes_by_site(self, site_name: str) -> list:
+        """Retrieve information about the nodes under NDI inventory
+
+        Args:
+            site_name (str): NDI Site Name
+
+        Returns:
+            list: A list of nodes, each entry is a dict with all the node details
+        """
+        uri = f"telemetry/nodes.json?fabricName={site_name}"
+        result, data = self.generic_get(uri)
+        if not result:
+            return False
+        else:
+            return data["entries"]
+
+    def get_node_sw_telemetry_config(self, site_name:str, node_serial:str) -> str:
+        """Retrieve Node Expected Software Telemetry Configuration
+
+        Args:
+            site_name (str): NDI Site Name
+            node_serial (str): This must be the switch SN, not the name, not the IP. The SN
+
+        Returns:
+            str: A multiline string with all the configurations expected on the device
+        """
+        uri = f"telemetry/swExpectedConfig.json?fabricName={site_name}&switch={node_serial}"
+        result, data = self.generic_get(uri)
+        if not result:
+            return False
+        else: 
+            cleaned_commands = list()
+            for line in data["data"].splitlines():
+                if line.strip():
+                    cleaned_commands.append(line)
+            return "\n".join(cleaned_commands)
+
+
+    def get_node_flow_telemetry_config(self, site_name:str, node_serial:str) -> str:
+        """Retrieve Node Expected Flow Telemetry Configuration
+
+        Args:
+            site_name (str): NDI Site Name
+            node_serial (str): This must be the switch SN, not the name, not the IP. The SN
+
+        Returns:
+            str: A multiline string with all the configurations expected on the device
+        """
+        uri = f"telemetry/ftExpectedConfig.json?fabricName={site_name}&switch={node_serial}"
+        result, data = self.generic_get(uri)
+        if not result:
+            return False
+        else:
+            cleaned_commands = list()
+            for line in data["data"].splitlines():
+                if line.strip():
+                    cleaned_commands.append(line)
+            return "\n".join(cleaned_commands)
